@@ -13,7 +13,7 @@ use serde_cbor::Error as CborError;
 /// # use futures::{executor, SinkExt, TryStreamExt};
 /// # use futures::io::Cursor;
 /// use serde::{Serialize, Deserialize};
-/// use futures_codec::{CborCodec, Framed};
+/// use asynchronous_codec::{CborCodec, Framed};
 ///
 /// #[derive(Serialize, Deserialize)]
 /// struct Something {

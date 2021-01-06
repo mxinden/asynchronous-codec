@@ -1,14 +1,14 @@
 [package]
-name = "futures_codec"
+name = "asynchronous-codec"
 edition = "2018"
 version = "0.4.1"
-authors = ["Matt Hunzinger <matthunz2@gmail.com>"]
+authors = ["Max Inden <mail@max-inden.de>"]
 description = "Utilities for encoding and decoding frames using `async/await`"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/matthunz/futures-codec"
-homepage = "https://github.com/matthunz/futures-codec"
-documentation = "https://docs.rs/crate/futures_codec"
+repository = "https://github.com/mxinden/asynchronous-codec"
+homepage = "https://github.com/mxinden/asynchronous-codec"
+documentation = "https://docs.rs/crate/asynchronous-codec"
 keywords = ["future", "futures", "async", "codec"]
 categories = ["asynchronous", "network-programming"]
 

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// # use futures::{executor, SinkExt, TryStreamExt};
 /// # use futures::io::Cursor;
 /// use serde::{Serialize, Deserialize};
-/// use futures_codec::{JsonCodec, Framed};
+/// use asynchronous_codec::{JsonCodec, Framed};
 ///
 /// #[derive(Serialize, Deserialize)]
 /// struct Something {

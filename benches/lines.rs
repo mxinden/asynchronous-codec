@@ -3,7 +3,7 @@
 extern crate test;
 
 use futures::{executor, io::Cursor, TryStreamExt};
-use futures_codec::{FramedRead, LinesCodec};
+use asynchronous_codec::{FramedRead, LinesCodec};
 
 #[bench]
 fn short(b: &mut test::Bencher) {

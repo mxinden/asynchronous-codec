@@ -21,7 +21,7 @@ pin_project! {
     /// use bytes::Bytes;
     /// use futures::{SinkExt, TryStreamExt};
     /// use futures::io::Cursor;
-    /// use futures_codec::{BytesCodec, Framed};
+    /// use asynchronous_codec::{BytesCodec, Framed};
     ///
     /// # futures::executor::block_on(async move {
     /// let cur = Cursor::new(vec![0u8; 12]);

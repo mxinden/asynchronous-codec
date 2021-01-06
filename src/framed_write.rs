@@ -17,7 +17,7 @@ pin_project! {
     /// # Example
     /// ```
     /// use bytes::Bytes;
-    /// use futures_codec::{FramedWrite, BytesCodec};
+    /// use asynchronous_codec::{FramedWrite, BytesCodec};
     /// use futures::SinkExt;
     ///
     /// # futures::executor::block_on(async move {
