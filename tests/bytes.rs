@@ -1,6 +1,6 @@
+use asynchronous_codec::{BytesCodec, Framed};
 use futures::io::Cursor;
 use futures::{executor, TryStreamExt};
-use asynchronous_codec::{BytesCodec, Framed};
 
 #[test]
 fn decodes() {

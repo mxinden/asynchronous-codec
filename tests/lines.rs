@@ -1,6 +1,6 @@
+use asynchronous_codec::{FramedRead, LinesCodec};
 use futures::io::Cursor;
 use futures::{executor, TryStreamExt};
-use asynchronous_codec::{FramedRead, LinesCodec};
 
 #[test]
 fn it_works() {
