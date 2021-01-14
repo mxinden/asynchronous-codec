@@ -1,6 +1,6 @@
+use asynchronous_codec::{Bytes, Framed, LengthCodec};
 use futures::io::Cursor;
 use futures::{executor, SinkExt, StreamExt};
-use asynchronous_codec::{Bytes, Framed, LengthCodec};
 
 #[test]
 fn same_msgs_are_received_as_were_sent() {
