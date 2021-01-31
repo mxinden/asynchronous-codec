@@ -2,9 +2,11 @@ use super::fuse::Fuse;
 use super::Decoder;
 
 use bytes::BytesMut;
-use futures::io::AsyncRead;
-use futures::{ready, Sink, Stream, TryStreamExt};
-use pin_project::pin_project;
+use futures_sink::Sink;
+use futures_util::io::AsyncRead;
+use futures_util::ready;
+use futures_util::stream::{Stream, TryStreamExt};
+use pin_project_lite::pin_project;
 use std::io;
 use std::marker::Unpin;
 use std::ops::{Deref, DerefMut};
@@ -15,7 +17,7 @@ use std::task::{Context, Poll};
 ///
 /// # Example
 /// ```
-/// use futures_codec::{BytesCodec, FramedRead};
+/// use asynchronous_codec::{BytesCodec, FramedRead};
 /// use futures::TryStreamExt;
 /// use bytes::{Bytes};
 ///
@@ -63,11 +65,16 @@ where
     /// Creates a new `FramedRead` from [`FramedReadParts`].
     ///
     /// See also [`FramedRead::into_parts`].
-    pub fn from_parts(FramedReadParts {
-        io, decoder, buffer, ..
-    }: FramedReadParts<T, D>) -> Self {
+    pub fn from_parts(
+        FramedReadParts {
+            io,
+            decoder,
+            buffer,
+            ..
+        }: FramedReadParts<T, D>,
+    ) -> Self {
         Self {
-            inner: framed_read_2(Fuse::new(io, decoder), Some(buffer))
+            inner: framed_read_2(Fuse::new(io, decoder), Some(buffer)),
         }
     }
 
@@ -128,12 +135,13 @@ where
     }
 }
 
-#[pin_project]
-#[derive(Debug)]
-pub struct FramedRead2<T> {
-    #[pin]
-    inner: T,
-    buffer: BytesMut,
+pin_project! {
+    #[derive(Debug)]
+    pub struct FramedRead2<T> {
+        #[pin]
+        inner: T,
+        buffer: BytesMut,
+    }
 }
 
 impl<T> Deref for FramedRead2<T> {

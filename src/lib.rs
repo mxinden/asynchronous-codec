@@ -9,7 +9,7 @@
 //! # futures::executor::block_on(async move {
 //! use futures::TryStreamExt;
 //! use futures::io::Cursor;
-//! use futures_codec::{LinesCodec, Framed};
+//! use asynchronous_codec::{LinesCodec, Framed};
 //!
 //! let io = Cursor::new(Vec::new());
 //! let mut framed = Framed::new(io, LinesCodec);
@@ -22,8 +22,8 @@
 //! ```
 
 mod codec;
-pub use codec::{BytesCodec, LengthCodec, LinesCodec};
 pub use bytes::{Bytes, BytesMut};
+pub use codec::{BytesCodec, LengthCodec, LinesCodec};
 
 #[cfg(feature = "cbor")]
 pub use codec::{CborCodec, CborCodecError};

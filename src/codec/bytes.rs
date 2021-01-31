@@ -11,7 +11,7 @@ use std::io::Error;
 /// use bytes::Bytes;
 /// use futures::{SinkExt, TryStreamExt};
 /// use futures::io::Cursor;
-/// use futures_codec::{BytesCodec, Framed};
+/// use asynchronous_codec::{BytesCodec, Framed};
 ///
 /// let mut buf = vec![];
 /// // Cursor implements AsyncRead and AsyncWrite

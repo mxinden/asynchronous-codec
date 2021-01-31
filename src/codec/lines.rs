@@ -8,7 +8,7 @@ use std::io::{Error, ErrorKind};
 /// ```rust
 /// # futures::executor::block_on(async move {
 /// use futures::stream::TryStreamExt; // for lines.try_next()
-/// use futures_codec::{FramedRead, LinesCodec};
+/// use asynchronous_codec::{FramedRead, LinesCodec};
 ///
 /// let input = "hello\nworld\nthis\nis\ndog\n".as_bytes();
 /// let mut lines = FramedRead::new(input, LinesCodec);

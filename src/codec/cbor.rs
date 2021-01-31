@@ -13,7 +13,7 @@ use serde_cbor::Error as CborError;
 /// # use futures::{executor, SinkExt, TryStreamExt};
 /// # use futures::io::Cursor;
 /// use serde::{Serialize, Deserialize};
-/// use futures_codec::{CborCodec, Framed};
+/// use asynchronous_codec::{CborCodec, Framed};
 ///
 /// #[derive(Serialize, Deserialize)]
 /// struct Something {
@@ -47,15 +47,33 @@ pub enum CborCodecError {
     Cbor(CborError),
 }
 
+impl std::fmt::Display for CborCodecError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CborCodecError::Io(e) => write!(f, "I/O error: {}", e),
+            CborCodecError::Cbor(e) => write!(f, "CBOR error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for CborCodecError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CborCodecError::Io(ref e) => Some(e),
+            CborCodecError::Cbor(ref e) => Some(e),
+        }
+    }
+}
+
 impl From<IoError> for CborCodecError {
     fn from(e: IoError) -> CborCodecError {
-        return CborCodecError::Io(e);
+        CborCodecError::Io(e)
     }
 }
 
 impl From<CborError> for CborCodecError {
     fn from(e: CborError) -> CborCodecError {
-        return CborCodecError::Cbor(e);
+        CborCodecError::Cbor(e)
     }
 }
 
@@ -138,6 +156,16 @@ where
     }
 }
 
+impl<Enc, Dec> Default for CborCodec<Enc, Dec>
+where
+    for<'de> Dec: Deserialize<'de> + 'static,
+    for<'de> Enc: Serialize + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use bytes::BytesMut;
@@ -180,7 +208,7 @@ mod test {
             name: "Test name".to_owned(),
             data: 34,
         };
-        codec.encode(item1.clone(), &mut buff).unwrap();
+        codec.encode(item1, &mut buff).unwrap();
 
         let mut start = buff.clone().split_to(4);
         assert_eq!(codec.decode(&mut start).unwrap(), None);

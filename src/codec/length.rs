@@ -11,7 +11,7 @@ const U64_LENGTH: usize = std::mem::size_of::<u64>();
 /// This codec will most likely be used wrapped in another codec like so.
 ///
 /// ```
-/// use futures_codec::{Decoder, Encoder, LengthCodec};
+/// use asynchronous_codec::{Decoder, Encoder, LengthCodec};
 /// use bytes::{Bytes, BytesMut};
 /// use std::io::{Error, ErrorKind};
 ///

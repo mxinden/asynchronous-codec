@@ -4,7 +4,6 @@ use crate::{Decoder, Encoder};
 use bytes::{Buf, BufMut, BytesMut};
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 /// A codec for JSON encoding and decoding using serde_json
 /// Enc is the type to encode, Dec is the type to decode
@@ -12,7 +11,7 @@ use serde_json;
 /// # use futures::{executor, SinkExt, TryStreamExt};
 /// # use futures::io::Cursor;
 /// use serde::{Serialize, Deserialize};
-/// use futures_codec::{JsonCodec, Framed};
+/// use asynchronous_codec::{JsonCodec, Framed};
 ///
 /// #[derive(Serialize, Deserialize)]
 /// struct Something {
@@ -46,15 +45,33 @@ pub enum JsonCodecError {
     Json(serde_json::Error),
 }
 
+impl std::fmt::Display for JsonCodecError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JsonCodecError::Io(e) => write!(f, "I/O error: {}", e),
+            JsonCodecError::Json(e) => write!(f, "JSON error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for JsonCodecError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            JsonCodecError::Io(ref e) => Some(e),
+            JsonCodecError::Json(ref e) => Some(e),
+        }
+    }
+}
+
 impl From<std::io::Error> for JsonCodecError {
     fn from(e: std::io::Error) -> JsonCodecError {
-        return JsonCodecError::Io(e);
+        JsonCodecError::Io(e)
     }
 }
 
 impl From<serde_json::Error> for JsonCodecError {
     fn from(e: serde_json::Error) -> JsonCodecError {
-        return JsonCodecError::Json(e);
+        JsonCodecError::Json(e)
     }
 }
 
@@ -136,6 +153,16 @@ where
     }
 }
 
+impl<Enc, Dec> Default for JsonCodec<Enc, Dec>
+where
+    for<'de> Dec: Deserialize<'de> + 'static,
+    for<'de> Enc: Serialize + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use bytes::BytesMut;
@@ -178,7 +205,7 @@ mod test {
             name: "Test name".to_owned(),
             data: 34,
         };
-        codec.encode(item1.clone(), &mut buff).unwrap();
+        codec.encode(item1, &mut buff).unwrap();
 
         let mut start = buff.clone().split_to(4);
         assert_eq!(codec.decode(&mut start).unwrap(), None);
