@@ -135,6 +135,20 @@ where
     pub fn read_buffer(&self) -> &BytesMut {
         self.inner.buffer()
     }
+
+    /// High-water mark for writes, in bytes
+    ///
+    /// See [`FramedWrite::send_high_water_mark`].
+    pub fn send_high_water_mark(&self) -> usize {
+        self.inner.high_water_mark
+    }
+
+    /// Sets high-water mark for writes, in bytes
+    ///
+    /// See [`FramedWrite::set_send_high_water_mark`].
+    pub fn set_send_high_water_mark(&mut self, hwm: usize) {
+        self.inner.high_water_mark = hwm;
+    }
 }
 
 impl<T, U> Stream for Framed<T, U>
