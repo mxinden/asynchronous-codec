@@ -8,6 +8,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.6.1] - 2022-11-08
+
 ### Added
 
 - `Framed::send_high_water_mark` and `Framed::set_send_high_water_mark` [#3].
