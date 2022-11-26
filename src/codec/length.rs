@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use crate::{Decoder, Encoder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::io::Error;
@@ -44,6 +45,7 @@ const U64_LENGTH: usize = std::mem::size_of::<u64>();
 ///     }
 /// }
 /// ```
+#[derive(Debug)]
 pub struct LengthCodec;
 
 impl Encoder for LengthCodec {

@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use super::fuse::Fuse;
 use super::Decoder;
 
@@ -12,6 +13,7 @@ use std::marker::Unpin;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use crate::framed_read::FramedReadError::DecodingError;
 
 /// A `Stream` of messages decoded from an `AsyncRead`.
 ///
@@ -128,7 +130,7 @@ where
     T: AsyncRead + Unpin,
     D: Decoder,
 {
-    type Item = Result<D::Item, D::Error>;
+    type Item = Result<D::Item, FramedReadError<D>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.try_poll_next_unpin(cx)
@@ -167,17 +169,44 @@ pub fn framed_read_2<T>(inner: T, buffer: Option<BytesMut>) -> FramedRead2<T> {
     }
 }
 
+/// Represents any error that occur during reading.
+#[derive(Debug)]
+pub enum FramedReadError<D: Decoder> {
+    /// Returned when there is an error during read of the underlying stream.
+    /// The payload is the inner stream's error.
+    Io(io::Error),
+    /// Returned when there is an error during the decoding.
+    /// The payload is the decoder's error.
+    DecodingError(D::Error)
+}
+
+impl<D: Decoder> From<io::Error> for FramedReadError<D> {
+    fn from(value: io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
+impl<T, D: Decoder> From<FramedReadError<Fuse<T, D>>> for FramedReadError<D> {
+    fn from(value: FramedReadError<Fuse<T, D>>) -> Self {
+        todo!()
+    }
+}
+
 impl<T> Stream for FramedRead2<T>
 where
     T: AsyncRead + Decoder + Unpin,
 {
-    type Item = Result<T::Item, T::Error>;
+    type Item = Result<T::Item, FramedReadError<T>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
 
-        if let Some(item) = this.inner.decode(&mut this.buffer)? {
+        let next_decode_result = this.inner.decode(&mut this.buffer);
+        if let Ok(Some(item)) = next_decode_result {
             return Poll::Ready(Some(Ok(item)));
+        }
+        if let Err(err) = next_decode_result {
+            return Poll::Ready(Some(Err(DecodingError(err))))
         }
 
         let mut buf = [0u8; INITIAL_CAPACITY];
@@ -188,25 +217,32 @@ where
 
             let ended = n == 0;
 
-            match this.inner.decode(&mut this.buffer)? {
-                Some(item) => return Poll::Ready(Some(Ok(item))),
-                None if ended => {
+
+            match this.inner.decode(&mut this.buffer) {
+                Ok(Some(item)) => return Poll::Ready(Some(Ok(item))),
+                Ok(None) if ended => {
                     if this.buffer.is_empty() {
                         return Poll::Ready(None);
                     } else {
-                        match this.inner.decode_eof(&mut this.buffer)? {
-                            Some(item) => return Poll::Ready(Some(Ok(item))),
-                            None if this.buffer.is_empty() => return Poll::Ready(None),
-                            None => {
+                        match this.inner.decode_eof(&mut this.buffer) {
+                            Ok(Some(item)) => return Poll::Ready(Some(Ok(item))),
+                            Ok(None) if this.buffer.is_empty() => return Poll::Ready(None),
+                            Ok(None) => {
                                 return Poll::Ready(Some(Err(io::Error::new(
                                     io::ErrorKind::UnexpectedEof,
                                     "bytes remaining in stream",
                                 )
                                 .into())));
                             }
+                            Err(err) => {
+                                return Poll::Ready(Some(Err(DecodingError(err))))
+                            },
                         }
                     }
                 }
+                Err(err) => {
+                    return Poll::Ready(Some(Err(DecodingError(err))))
+                },
                 _ => continue,
             }
         }

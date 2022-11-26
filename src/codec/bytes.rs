@@ -1,6 +1,6 @@
+use core::fmt::Debug;
 use crate::{Decoder, Encoder};
 use bytes::{Bytes, BytesMut};
-use std::io::Error;
 
 /// A simple codec that ships bytes around
 ///
@@ -11,7 +11,7 @@ use std::io::Error;
 /// use bytes::Bytes;
 /// use futures::{SinkExt, TryStreamExt};
 /// use futures::io::Cursor;
-/// use asynchronous_codec::{BytesCodec, Framed};
+/// use asynchronous_codec::{BytesCodec, Framed, FramedError};
 ///
 /// let mut buf = vec![];
 /// // Cursor implements AsyncRead and AsyncWrite
@@ -23,14 +23,17 @@ use std::io::Error;
 /// while let Some(bytes) = framed.try_next().await? {
 ///     dbg!(bytes);
 /// }
-/// # Ok::<_, std::io::Error>(())
+/// # Ok::<_, FramedError<BytesCodec>>(())
 /// # }).unwrap();
 /// ```
 pub struct BytesCodec;
 
+#[derive(Debug)]
+pub struct BytesError;
+
 impl Encoder for BytesCodec {
     type Item = Bytes;
-    type Error = Error;
+    type Error = BytesError;
 
     fn encode(&mut self, src: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.extend_from_slice(&src);
@@ -40,7 +43,7 @@ impl Encoder for BytesCodec {
 
 impl Decoder for BytesCodec {
     type Item = Bytes;
-    type Error = Error;
+    type Error = BytesError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let len = src.len();

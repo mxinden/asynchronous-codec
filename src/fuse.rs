@@ -5,6 +5,8 @@ use std::marker::Unpin;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use bytes::BytesMut;
+use crate::{Decoder, Encoder};
 
 pin_project! {
     #[derive(Debug)]
@@ -58,5 +60,28 @@ impl<T: AsyncWrite + Unpin, U> AsyncWrite for Fuse<T, U> {
     }
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
         self.project().t.poll_close(cx)
+    }
+}
+
+
+impl<T, U: Decoder> Decoder for Fuse<T, U> {
+    type Item = U::Item;
+    type Error = U::Error;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        self.u.decode(src)
+    }
+
+    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        self.u.decode_eof(src)
+    }
+}
+
+impl<T, U: Encoder> Encoder for Fuse<T, U> {
+    type Item = U::Item;
+    type Error = U::Error;
+
+    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        self.u.encode(item, dst)
     }
 }

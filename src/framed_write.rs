@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use super::fuse::Fuse;
 use super::Encoder;
 use bytes::{Buf, BytesMut};
@@ -5,11 +6,12 @@ use futures_sink::Sink;
 use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::ready;
 use pin_project_lite::pin_project;
-use std::io::{Error, ErrorKind};
+use std::io;
 use std::marker::Unpin;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use crate::Decoder;
 
 pin_project! {
     /// A `Sink` of frames encoded to an `AsyncWrite`.
@@ -145,7 +147,7 @@ where
     T: AsyncWrite + Unpin,
     E: Encoder,
 {
-    type Error = E::Error;
+    type Error = FramedWriteError<E>;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.project().inner.poll_ready(cx)
@@ -216,8 +218,25 @@ impl<T: AsyncRead + Unpin> AsyncRead for FramedWrite2<T> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize, Error>> {
+    ) -> Poll<Result<usize, io::Error>> {
         self.project().inner.poll_read(cx, buf)
+    }
+}
+
+/// Represents any error that occur during writing.
+#[derive(Debug)]
+pub enum FramedWriteError<E: Encoder> {
+    /// Returned when there is an error during write on the underlying stream.
+    /// The payload is the inner stream's error.
+    Io(io::Error),
+    /// Returned when there is an error during the encoding.
+    /// The payload is the encoder's error.
+    EncodingError(E::Error)
+}
+
+impl<T: Encoder> From<io::Error> for FramedWriteError<T> {
+    fn from(value: io::Error) -> Self {
+        Self::Io(value)
     }
 }
 
@@ -225,7 +244,7 @@ impl<T> Sink<T::Item> for FramedWrite2<T>
 where
     T: AsyncWrite + Encoder + Unpin,
 {
-    type Error = T::Error;
+    type Error = FramedWriteError<T>;
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         let this = &mut *self;
@@ -243,7 +262,10 @@ where
     }
     fn start_send(mut self: Pin<&mut Self>, item: T::Item) -> Result<(), Self::Error> {
         let this = &mut *self;
-        this.inner.encode(item, &mut this.buffer)
+        if let Err(err) = this.inner.encode(item, &mut this.buffer) {
+            return Err(FramedWriteError::EncodingError(err));
+        }
+        Ok(())
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         let mut this = self.project();
@@ -272,8 +294,8 @@ impl<T> FramedWrite2<T> {
     }
 }
 
-fn err_eof() -> Error {
-    Error::new(ErrorKind::UnexpectedEof, "End of file")
+fn err_eof() -> io::Error {
+    io::Error::new(io::ErrorKind::UnexpectedEof, "End of file")
 }
 
 /// The parts obtained from [`FramedWrite::into_parts`].
@@ -301,5 +323,19 @@ impl<T, E> FramedWriteParts<T, E> {
             buffer: self.buffer,
             _priv: (),
         }
+    }
+}
+
+
+impl<T: Decoder> Decoder for FramedWrite2<T> {
+    type Item = T::Item;
+    type Error = T::Error;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        self.inner.decode(src)
+    }
+
+    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        self.inner.decode_eof(src)
     }
 }

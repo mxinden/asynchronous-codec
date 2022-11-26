@@ -15,7 +15,7 @@ use serde_cbor::Error as CborError;
 /// use serde::{Serialize, Deserialize};
 /// use asynchronous_codec::{CborCodec, Framed};
 ///
-/// #[derive(Serialize, Deserialize)]
+/// #[derive(Serialize, Deserialize, Debug)]
 /// struct Something {
 ///     pub data: u16,
 /// }
@@ -168,6 +168,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use alloc::string::String;
     use bytes::BytesMut;
     use serde::{Deserialize, Serialize};
 
@@ -186,7 +187,7 @@ mod test {
         let mut buff = BytesMut::new();
 
         let item1 = TestStruct {
-            name: "Test name".to_owned(),
+            name: "Test name".into(),
             data: 16,
         };
         codec.encode(item1.clone(), &mut buff).unwrap();
@@ -205,7 +206,7 @@ mod test {
         let mut buff = BytesMut::new();
 
         let item1 = TestStruct {
-            name: "Test name".to_owned(),
+            name: "Test name".into(),
             data: 34,
         };
         codec.encode(item1, &mut buff).unwrap();

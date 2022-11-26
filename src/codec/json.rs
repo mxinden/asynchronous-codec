@@ -1,8 +1,8 @@
-use std::marker::PhantomData;
+use std::io::Error as IoError;
+use core::marker::PhantomData;
 
 use crate::{Decoder, Encoder};
 use bytes::{Buf, BufMut, BytesMut};
-
 use serde::{Deserialize, Serialize};
 
 /// A codec for JSON encoding and decoding using serde_json
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// use serde::{Serialize, Deserialize};
 /// use asynchronous_codec::{JsonCodec, Framed};
 ///
-/// #[derive(Serialize, Deserialize)]
+/// #[derive(Serialize, Deserialize, Debug)]
 /// struct Something {
 ///     pub data: u16,
 /// }
@@ -40,7 +40,7 @@ pub struct JsonCodec<Enc, Dec> {
 #[derive(Debug)]
 pub enum JsonCodecError {
     /// IO error
-    Io(std::io::Error),
+    Io(IoError),
     /// JSON error
     Json(serde_json::Error),
 }
@@ -165,6 +165,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use alloc::string::String;
     use bytes::BytesMut;
     use serde::{Deserialize, Serialize};
 
@@ -183,7 +184,7 @@ mod test {
         let mut buff = BytesMut::new();
 
         let item1 = TestStruct {
-            name: "Test name".to_owned(),
+            name: "Test name".into(),
             data: 16,
         };
         codec.encode(item1.clone(), &mut buff).unwrap();
@@ -202,7 +203,7 @@ mod test {
         let mut buff = BytesMut::new();
 
         let item1 = TestStruct {
-            name: "Test name".to_owned(),
+            name: "Test name".into(),
             data: 34,
         };
         codec.encode(item1, &mut buff).unwrap();
