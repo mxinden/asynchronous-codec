@@ -46,3 +46,6 @@ mod framed_write;
 pub use framed_write::{FramedWrite, FramedWriteParts};
 
 mod fuse;
+
+mod recvsend;
+pub use recvsend::{CloseStream, Event, RecvSend, ResponsePlaceholder, ReturnStream};
