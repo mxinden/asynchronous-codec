@@ -41,6 +41,14 @@ where
             behaviour: Default::default(),
         }
     }
+
+    /// Reconfigure this future to close the stream after the message has been sent instead of returning it.
+    pub fn close_after_send(self) -> RecvSend<S, C, CloseStream> {
+        RecvSend {
+            inner: self.inner,
+            behaviour: Default::default(),
+        }
+    }
 }
 
 enum RecvSendState<S, C: Encoder> {
@@ -295,19 +303,6 @@ where
 /// The slot for the response to be sent on the stream.
 pub struct ResponsePlaceholder<Res> {
     shared: Arc<Mutex<Shared<Res>>>,
-}
-
-impl<S, C> RecvSend<S, C, ReturnStream>
-where
-    C: Encoder,
-{
-    /// Reconfigure this future to close the stream after the message has been sent instead of returning it.
-    pub fn close_after_send(self) -> RecvSend<S, C, CloseStream> {
-        RecvSend {
-            inner: self.inner,
-            behaviour: Default::default(),
-        }
-    }
 }
 
 impl<Res> ResponsePlaceholder<Res> {
