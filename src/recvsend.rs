@@ -66,7 +66,7 @@ where
     C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
     E: From<io::Error> + std::error::Error + Send + Sync + 'static,
 {
-    type Item = Result<(Req, ResponsePlaceholder<Res>), io::Error>;
+    type Item = Result<(Req, Responder<Res>), io::Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
@@ -97,9 +97,9 @@ where
                         shared: shared.clone(),
                     });
 
-                    let slot = ResponsePlaceholder { shared };
+                    let responder = Responder { shared };
 
-                    return Poll::Ready(Some(Ok((request, slot))));
+                    return Poll::Ready(Some(Ok((request, responder))));
                 }
                 RecvSendState::Sending(mut sending) => match sending.poll(cx)? {
                     Poll::Ready(()) => {
@@ -166,9 +166,9 @@ pub enum Event<Req, Res, S> {
     /// TODO
     NewRequest {
         /// TODO
-        req: Req,
+        request: Req,
         /// TODO
-        res: ResponsePlaceholder<Res>,
+        responder: Responder<Res>,
     },
     /// TODO
     Completed {
@@ -208,18 +208,18 @@ where
                         }
                     };
 
-                    let shared = Arc::new(Mutex::new(Shared::default()));
+                    let shared = Arc::new(Mutex::new(Shared {
+                        waker: Some(cx.waker().clone()),
+                        ..Shared::default()
+                    }));
                     this.inner = RecvSendState::Sending(Sending {
                         framed,
                         shared: shared.clone(),
                     });
 
-                    let slot = ResponsePlaceholder { shared };
+                    let responder = Responder { shared };
 
-                    return Poll::Ready(Some(Ok(Event::NewRequest {
-                        req: request,
-                        res: slot,
-                    })));
+                    return Poll::Ready(Some(Ok(Event::NewRequest { request, responder })));
                 }
                 RecvSendState::Sending(mut sending) => match sending.poll(cx)? {
                     Poll::Ready(()) => {
@@ -300,23 +300,28 @@ where
     }
 }
 
-/// The slot for the response to be sent on the stream.
-pub struct ResponsePlaceholder<Res> {
-    shared: Arc<Mutex<Shared<Res>>>,
+/// Responder for corresponding request.
+///
+/// Can be just dropped if response if not necessary for this request.
+pub struct Responder<Response> {
+    shared: Arc<Mutex<Shared<Response>>>,
 }
 
-impl<Res> ResponsePlaceholder<Res> {
-    /// Fill this slot with a response.
-    ///
-    /// This consumes the slot because a response can only be sent once.
-    /// The actual IO for sending the response happens in the [`SendingResponse`] future.
-    pub fn fill(self, res: Res) {
-        let mut guard = self.shared.lock().unwrap();
-
-        guard.message = Some(res);
-        if let Some(waker) = guard.waker.take() {
+impl<Response> Drop for Responder<Response> {
+    fn drop(&mut self) {
+        if let Some(waker) = self.shared.lock().unwrap().waker.take() {
             waker.wake();
         }
+    }
+}
+
+impl<Response> Responder<Response> {
+    /// Send response.
+    ///
+    /// This consumes the responder because a response can only be sent once.
+    /// The actual IO for sending the response happens in the [`SendingResponse`] future.
+    pub fn respond(self, response: Response) {
+        self.shared.lock().unwrap().message = Some(response);
     }
 }
 
@@ -338,15 +343,19 @@ where
         futures_util::ready!(self.framed.poll_ready_unpin(cx).map_err(Error::Send))
             .map_err(into_io_error)?;
 
-        let mut guard = self.shared.lock().unwrap();
+        let response = {
+            let mut guard = self.shared.lock().unwrap();
 
-        let response = match guard.message.take() {
-            Some(response) => response,
-            None => {
-                guard.waker = Some(cx.waker().clone());
-                drop(guard);
-
-                return Poll::Pending;
+            match guard.message.take() {
+                Some(response) => response,
+                None => {
+                    return if guard.waker.replace(cx.waker().clone()).is_none() {
+                        // Responder was dropped before sending any value, nothing else left to do here.
+                        Poll::Ready(Ok(()))
+                    } else {
+                        Poll::Pending
+                    };
+                }
             }
         };
 

@@ -8,28 +8,48 @@ use std::time::Duration;
 
 #[test]
 fn smoke() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
     let mut buffer = Vec::new();
     buffer.extend_from_slice(b"hello\n");
 
     let mut stream = RecvSend::new(Cursor::new(&mut buffer), LinesCodec).close_after_send();
-    let (message, slot) = stream.next().now_or_never().unwrap().unwrap().unwrap();
+    let (message, responder) = stream.next().now_or_never().unwrap().unwrap().unwrap();
 
     assert_eq!(message, "hello\n");
 
-    slot.fill("world\n".to_owned());
+    responder.respond("world\n".to_owned());
     let _ = stream.next().now_or_never().unwrap();
 
     assert_eq!(buffer, b"hello\nworld\n");
 }
 
+#[test]
+fn no_response() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
+    let mut buffer = Vec::new();
+    buffer.extend_from_slice(b"hello\n");
+
+    let mut stream = RecvSend::new(Cursor::new(&mut buffer), LinesCodec).close_after_send();
+    let (message, responder) = stream.next().now_or_never().unwrap().unwrap().unwrap();
+
+    assert_eq!(message, "hello\n");
+
+    // Drop without sending a response.
+    drop(responder);
+    let _ = stream.next().now_or_never().unwrap();
+
+    assert_eq!(buffer, b"hello\n");
+}
+
 #[tokio::test]
 async fn runtime_driven() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
     let mut buffer = Vec::new();
     buffer.extend_from_slice(b"hello\n");
 
     let mut stream = RecvSend::new(Cursor::new(buffer), LinesCodec);
 
-    let Event::NewRequest { req, res } =
+    let Event::NewRequest { request, responder } =
         stream.next()
             .await
             .unwrap()
@@ -37,31 +57,32 @@ async fn runtime_driven() {
         panic!()
     };
 
-    assert_eq!(req, "hello\n");
+    assert_eq!(request, "hello\n");
 
-    let (rx, tx) = oneshot::channel();
+    let (tx, rx) = oneshot::channel();
 
     tokio::spawn(async move {
         let Event::Completed { stream } = stream.next().await.unwrap().unwrap() else { panic!() };
 
-        rx.send(stream.into_inner()).unwrap();
+        tx.send(stream.into_inner()).unwrap();
     });
 
     tokio::time::sleep(Duration::from_millis(100)).await; // simulate computation of response
-    res.fill("world\n".to_owned());
-    assert_eq!(tx.await.unwrap(), b"hello\nworld\n");
+    responder.respond("world\n".to_owned());
+    assert_eq!(rx.await.unwrap(), b"hello\nworld\n");
 }
 
 #[tokio::test]
 async fn close_after_send() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
     let mut buffer = Vec::new();
     buffer.extend_from_slice(b"hello\n");
 
     let mut stream = RecvSend::new(Cursor::new(&mut buffer), LinesCodec).close_after_send();
 
-    let (_, slot) = stream.next().await.unwrap().unwrap();
+    let (_request, responder) = stream.next().await.unwrap().unwrap();
 
-    slot.fill("world\n".to_owned());
+    responder.respond("world\n".to_owned());
 
     stream.next().await;
 
@@ -72,6 +93,7 @@ async fn close_after_send() {
 
 #[tokio::test]
 async fn select_all() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
     let mut buffer1 = Vec::new();
     buffer1.extend_from_slice(b"hello\n");
     let mut buffer2 = Vec::new();
@@ -82,10 +104,10 @@ async fn select_all() {
         RecvSend::new(Cursor::new(&mut buffer2), LinesCodec).close_after_send(),
     ]);
 
-    let (_, slot) = streams.next().await.unwrap().unwrap();
-    slot.fill("world1\n".to_owned());
-    let (_, slot) = streams.next().await.unwrap().unwrap();
-    slot.fill("world2\n".to_owned());
+    let (_request, responder) = streams.next().await.unwrap().unwrap();
+    responder.respond("world1\n".to_owned());
+    let (_request, responder) = streams.next().await.unwrap().unwrap();
+    responder.respond("world2\n".to_owned());
 
     streams.next().await;
 
