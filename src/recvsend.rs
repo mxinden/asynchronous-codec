@@ -289,6 +289,7 @@ where
                         Poll::Ready(Ok(response)) => response,
                         Poll::Ready(Err(_)) => {
                             log::debug!("no response provided via `Responder`");
+                            this.inner = RecvSendState::Done;
                             return Poll::Ready(Some(Ok(Event::Completed {
                                 stream: framed.into_parts().io,
                             })));
