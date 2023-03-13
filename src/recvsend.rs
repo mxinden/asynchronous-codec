@@ -50,6 +50,11 @@ where
             behaviour: Default::default(),
         }
     }
+
+    /// Abort this message exchange, immediately freeing all resources.
+    pub fn abort(&mut self) {
+        self.inner = RecvSendState::Done;
+    }
 }
 
 enum RecvSendState<S, C: Encoder> {
