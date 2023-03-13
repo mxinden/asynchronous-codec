@@ -287,9 +287,11 @@ where
                 RecvSendState::Waiting(mut waiting, framed) => {
                     let response = match waiting.poll(cx) {
                         Poll::Ready(Ok(response)) => response,
-                        Poll::Ready(Err(e)) => {
-                            this.inner = RecvSendState::Done;
-                            return Poll::Ready(Some(Err(e)));
+                        Poll::Ready(Err(_)) => {
+                            log::debug!("no response provided via `Responder`");
+                            return Poll::Ready(Some(Ok(Event::Completed {
+                                stream: framed.into_parts().io,
+                            })));
                         }
                         Poll::Pending => {
                             this.inner = RecvSendState::Waiting(waiting, framed);

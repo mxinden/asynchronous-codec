@@ -23,6 +23,7 @@ futures-sink = "0.3"
 futures-util = { version = "0.3", features = ["io"] }
 memchr = "2"
 pin-project-lite = "0.2"
+log = "0.4.17"
 
 [dev-dependencies]
 futures = "0.3"
