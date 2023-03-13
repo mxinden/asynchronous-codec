@@ -1,4 +1,4 @@
-use asynchronous_codec::{Event, LinesCodec, RecvSend};
+use asynchronous_codec::{Event, LinesCodec, RecvSend, SendRecv};
 use futures::channel::oneshot;
 use futures::io::Cursor;
 use futures_util::stream::SelectAll;
@@ -7,7 +7,7 @@ use std::iter::FromIterator;
 use std::time::Duration;
 
 #[test]
-fn smoke() {
+fn smoke_recv_send() {
     // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
     let mut buffer = Vec::new();
     buffer.extend_from_slice(b"hello\n");
@@ -21,6 +21,21 @@ fn smoke() {
     let _ = stream.next().now_or_never().unwrap();
 
     assert_eq!(buffer, b"hello\nworld\n");
+}
+
+#[test]
+fn smoke_send_recv() {
+    // Emulating duplex stream, both reads and writes happen on the same buffer for convenience.
+    let mut buffer = Vec::new();
+    buffer.extend_from_slice(b"hello\n");
+
+    let mut stream =
+        SendRecv::new(Cursor::new(&mut buffer), LinesCodec, "".to_owned()).close_after_send();
+    let message = stream.next().now_or_never().unwrap().unwrap().unwrap();
+
+    assert_eq!(message, "hello\n");
+
+    let _ = stream.next().now_or_never().unwrap();
 }
 
 #[test]

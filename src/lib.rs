@@ -44,8 +44,14 @@ pub use framed_read::{FramedRead, FramedReadParts};
 
 mod framed_write;
 pub use framed_write::{FramedWrite, FramedWriteParts};
+pub use message_patterns::CloseStream;
+pub use message_patterns::ReturnStream;
 
 mod fuse;
 
+mod message_patterns;
 mod recvsend;
-pub use recvsend::{CloseStream, Event, RecvSend, Responder, ReturnStream};
+mod sendrecv;
+
+pub use recvsend::{Event, RecvSend, Responder};
+pub use sendrecv::SendRecv;

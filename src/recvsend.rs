@@ -1,9 +1,10 @@
+use crate::message_patterns::{CloseStream, Error, ReturnStream, Sending};
 use crate::{Decoder, Encoder, Framed};
 use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::{SinkExt, Stream, StreamExt};
 use std::marker::PhantomData;
 use std::{
-    fmt, io, mem,
+    io, mem,
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
@@ -171,7 +172,7 @@ where
     }
 }
 
-fn into_io_error<E>(e: Error<E>) -> io::Error
+pub(crate) fn into_io_error<E>(e: Error<E>) -> io::Error
 where
     E: std::error::Error + Send + Sync + 'static,
 {
@@ -298,46 +299,9 @@ where
     }
 }
 
-/// Marker type for a [`SendingResponse`] future that will return the stream back to the user after the message has been sent.
-///
-/// This may be useful if multiple request-response exchanges should happen on the same stream.
-pub enum ReturnStream {}
-
-/// Marker type for a [`SendingResponse`] future that will close the stream after the message has been sent.
-pub enum CloseStream {}
-
-#[derive(Debug)]
-enum Error<Enc> {
-    Recv(Enc),
-    Send(Enc),
-}
-
-impl<Enc> fmt::Display for Error<Enc> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Recv(_) => write!(f, "failed to recv on stream"),
-            Error::Send(_) => write!(f, "failed to send on stream"),
-        }
-    }
-}
-
-impl<Enc> std::error::Error for Error<Enc>
-where
-    Enc: std::error::Error + 'static,
-{
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::Recv(inner) => Some(inner),
-            Error::Send(inner) => Some(inner),
-        }
-    }
-}
-
-/// Responder for corresponding request.
-///
-/// Can be just dropped if response if not necessary for this request.
-pub struct Responder<Response> {
-    shared: Arc<Mutex<Shared<Response>>>,
+/// The slot for the response to be sent on the stream.
+pub struct Responder<Res> {
+    shared: Arc<Mutex<Shared<Res>>>,
 }
 
 impl<Response> Drop for Responder<Response> {
@@ -358,34 +322,17 @@ impl<Response> Responder<Response> {
     }
 }
 
-struct Sending<S, C>
-where
-    C: Encoder,
-{
-    framed: Framed<S, C>,
-    message: Option<C::Item>,
+struct Shared<M> {
+    message: Option<M>,
+    waker: Option<Waker>,
 }
 
-impl<S, C, Req, Res, E> Sending<S, C>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-    C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
-    E: std::error::Error + Send + Sync + 'static + Unpin,
-{
-    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        futures_util::ready!(self.framed.poll_ready_unpin(cx).map_err(Error::Send))
-            .map_err(into_io_error)?;
-
-        self.framed
-            .start_send_unpin(
-                self.message
-                    .take()
-                    .expect("to not be polled after completion"),
-            )
-            .map_err(Error::Send)
-            .map_err(into_io_error)?;
-
-        Poll::Ready(Ok(()))
+impl<M> Default for Shared<M> {
+    fn default() -> Self {
+        Self {
+            message: None,
+            waker: None,
+        }
     }
 }
 
@@ -416,19 +363,5 @@ where
         };
 
         Poll::Ready(Ok(response))
-    }
-}
-
-struct Shared<M> {
-    message: Option<M>,
-    waker: Option<Waker>,
-}
-
-impl<M> Default for Shared<M> {
-    fn default() -> Self {
-        Self {
-            message: None,
-            waker: None,
-        }
     }
 }
