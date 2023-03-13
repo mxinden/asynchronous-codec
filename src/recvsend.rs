@@ -300,6 +300,7 @@ where
 }
 
 /// The slot for the response to be sent on the stream.
+#[derive(Debug)]
 pub struct Responder<Res> {
     shared: Arc<Mutex<Shared<Res>>>,
 }
