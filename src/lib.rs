@@ -51,7 +51,9 @@ mod fuse;
 
 mod message_patterns;
 mod recvsend;
+mod send;
 mod sendrecv;
 
 pub use recvsend::{Event, RecvSend, Responder};
+pub use send::Send;
 pub use sendrecv::SendRecv;

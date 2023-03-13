@@ -11,12 +11,11 @@ use std::{
 
 /// The send-recv message pattern.
 ///
-/// This struct implements a request-response message pattern for the receiving side.
-/// It will attempt to first read a message from the stream and then send a response.
+/// This struct implements a request-response message pattern for the sending side.
 ///
 /// This struct implements [`Stream`] but each instance will only ever emit one item. The reason
 /// this implements [`Stream`] instead of [`Future`] is that a [`Future`] will not be polled after
-/// it has resolved. This struct however needs to do more work after emitting the request: Sending the response.
+/// it has resolved. This struct however needs to do more work after receiving the response: Close the stream.
 ///
 /// This component works really well when used together with [`SelectAll`](futures::stream::SelectAll).
 pub struct SendRecv<S, C, B>
