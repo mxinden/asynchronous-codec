@@ -208,6 +208,7 @@ where
                             return Poll::Ready(Some(Err(into_io_error(Error::Recv(e)))));
                         }
                         Poll::Ready(None) => {
+                            this.inner = SendRecvState::Done;
                             return Poll::Ready(Some(Err(io::Error::from(
                                 io::ErrorKind::UnexpectedEof,
                             ))));
@@ -218,6 +219,7 @@ where
                         }
                     };
 
+                    this.inner = SendRecvState::Done;
                     return Poll::Ready(Some(Ok((response, framed.into_parts().io))));
                 }
                 SendRecvState::Closing { .. } => {
