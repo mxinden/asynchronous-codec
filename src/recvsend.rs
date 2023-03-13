@@ -332,7 +332,6 @@ where
                         return Poll::Pending;
                     }
                 },
-
                 RecvSendState::Closing { .. } => {
                     unreachable!("We never go into `Closing`")
                 }

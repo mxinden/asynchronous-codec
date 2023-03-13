@@ -75,39 +75,41 @@ where
 
         loop {
             match mem::replace(&mut this.inner, SendRecvState::Poisoned) {
-                SendRecvState::Sending(mut sending) => match sending.poll(cx)? {
-                    Poll::Ready(()) => {
+                SendRecvState::Sending(mut sending) => match sending.poll(cx) {
+                    Poll::Ready(Ok(())) => {
                         this.inner = SendRecvState::Flushing {
                             framed: sending.framed,
                         };
+                    }
+                    Poll::Ready(Err(e)) => {
+                        this.inner = SendRecvState::Done;
+                        return Poll::Ready(Some(Err(into_io_error(Error::Send(e)))));
                     }
                     Poll::Pending => {
                         this.inner = SendRecvState::Sending(sending);
                         return Poll::Pending;
                     }
                 },
-                SendRecvState::Flushing { mut framed } => {
-                    match framed
-                        .poll_flush_unpin(cx)
-                        .map_err(Error::Recv)
-                        .map_err(into_io_error)?
-                    {
-                        Poll::Ready(()) => {
-                            this.inner = SendRecvState::Receiving { framed };
-                        }
-                        Poll::Pending => {
-                            this.inner = SendRecvState::Flushing { framed };
-                            return Poll::Pending;
-                        }
+                SendRecvState::Flushing { mut framed } => match framed.poll_flush_unpin(cx) {
+                    Poll::Ready(Ok(())) => {
+                        this.inner = SendRecvState::Receiving { framed };
                     }
-                }
+                    Poll::Ready(Err(e)) => {
+                        this.inner = SendRecvState::Done;
+                        return Poll::Ready(Some(Err(into_io_error(Error::Send(e)))));
+                    }
+                    Poll::Pending => {
+                        this.inner = SendRecvState::Flushing { framed };
+                        return Poll::Pending;
+                    }
+                },
                 SendRecvState::Receiving { mut framed } => {
-                    let response = match framed
-                        .poll_next_unpin(cx)
-                        .map_err(Error::Recv)
-                        .map_err(into_io_error)?
-                    {
-                        Poll::Ready(Some(request)) => request,
+                    let response = match framed.poll_next_unpin(cx) {
+                        Poll::Ready(Some(Ok(request))) => request,
+                        Poll::Ready(Some(Err(e))) => {
+                            this.inner = SendRecvState::Done;
+                            return Poll::Ready(Some(Err(into_io_error(Error::Recv(e)))));
+                        }
                         Poll::Ready(None) => {
                             return Poll::Ready(Some(Err(io::Error::from(
                                 io::ErrorKind::UnexpectedEof,
@@ -123,14 +125,14 @@ where
                     return Poll::Ready(Some(Ok(response)));
                 }
                 SendRecvState::Closing { mut framed } => {
-                    match framed
-                        .poll_close_unpin(cx)
-                        .map_err(Error::Recv)
-                        .map_err(into_io_error)?
-                    {
-                        Poll::Ready(()) => {
+                    match framed.poll_close_unpin(cx) {
+                        Poll::Ready(Ok(())) => {
                             this.inner = SendRecvState::Done;
                             continue;
+                        }
+                        Poll::Ready(Err(e)) => {
+                            this.inner = SendRecvState::Done;
+                            return Poll::Ready(Some(Err(into_io_error(Error::Recv(e)))));
                         }
                         Poll::Pending => {
                             this.inner = SendRecvState::Closing { framed };
@@ -170,39 +172,41 @@ where
 
         loop {
             match mem::replace(&mut this.inner, SendRecvState::Poisoned) {
-                SendRecvState::Sending(mut sending) => match sending.poll(cx)? {
-                    Poll::Ready(()) => {
+                SendRecvState::Sending(mut sending) => match sending.poll(cx) {
+                    Poll::Ready(Ok(())) => {
                         this.inner = SendRecvState::Flushing {
                             framed: sending.framed,
                         };
+                    }
+                    Poll::Ready(Err(e)) => {
+                        this.inner = SendRecvState::Done;
+                        return Poll::Ready(Some(Err(into_io_error(Error::Send(e)))));
                     }
                     Poll::Pending => {
                         this.inner = SendRecvState::Sending(sending);
                         return Poll::Pending;
                     }
                 },
-                SendRecvState::Flushing { mut framed } => {
-                    match framed
-                        .poll_flush_unpin(cx)
-                        .map_err(Error::Recv)
-                        .map_err(into_io_error)?
-                    {
-                        Poll::Ready(()) => {
-                            this.inner = SendRecvState::Receiving { framed };
-                        }
-                        Poll::Pending => {
-                            this.inner = SendRecvState::Flushing { framed };
-                            return Poll::Pending;
-                        }
+                SendRecvState::Flushing { mut framed } => match framed.poll_flush_unpin(cx) {
+                    Poll::Ready(Ok(())) => {
+                        this.inner = SendRecvState::Receiving { framed };
                     }
-                }
+                    Poll::Ready(Err(e)) => {
+                        this.inner = SendRecvState::Done;
+                        return Poll::Ready(Some(Err(into_io_error(Error::Send(e)))));
+                    }
+                    Poll::Pending => {
+                        this.inner = SendRecvState::Flushing { framed };
+                        return Poll::Pending;
+                    }
+                },
                 SendRecvState::Receiving { mut framed } => {
-                    let response = match framed
-                        .poll_next_unpin(cx)
-                        .map_err(Error::Recv)
-                        .map_err(into_io_error)?
-                    {
-                        Poll::Ready(Some(request)) => request,
+                    let response = match framed.poll_next_unpin(cx) {
+                        Poll::Ready(Some(Ok(request))) => request,
+                        Poll::Ready(Some(Err(e))) => {
+                            this.inner = SendRecvState::Done;
+                            return Poll::Ready(Some(Err(into_io_error(Error::Recv(e)))));
+                        }
                         Poll::Ready(None) => {
                             return Poll::Ready(Some(Err(io::Error::from(
                                 io::ErrorKind::UnexpectedEof,
