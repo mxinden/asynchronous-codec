@@ -53,6 +53,7 @@ where
 
 enum RecvSendState<S, C: Encoder> {
     Receiving { framed: Framed<S, C> },
+    Waiting(Waiting<C>, Framed<S, C>),
     Sending(Sending<S, C>),
     Flushing { framed: Framed<S, C> },
     Closing { framed: Framed<S, C> },
@@ -64,7 +65,8 @@ impl<S, C, Req, Res, E> Stream for RecvSend<S, C, CloseStream>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
-    E: From<io::Error> + std::error::Error + Send + Sync + 'static,
+    E: From<io::Error> + std::error::Error + Send + Sync + Unpin + 'static,
+    Res: Unpin,
 {
     type Item = Result<(Req, Responder<Res>), io::Error>;
 
@@ -92,14 +94,29 @@ where
                     };
 
                     let shared = Arc::new(Mutex::new(Shared::default()));
-                    this.inner = RecvSendState::Sending(Sending {
+                    this.inner = RecvSendState::Waiting(
+                        Waiting {
+                            shared: shared.clone(),
+                        },
                         framed,
-                        shared: shared.clone(),
-                    });
+                    );
 
                     let responder = Responder { shared };
 
                     return Poll::Ready(Some(Ok((request, responder))));
+                }
+                RecvSendState::Waiting(mut waiting, framed) => {
+                    let response = match waiting.poll(cx)? {
+                        Poll::Ready(response) => response,
+                        Poll::Pending => {
+                            this.inner = RecvSendState::Waiting(waiting, framed);
+                            return Poll::Pending;
+                        }
+                    };
+                    this.inner = RecvSendState::Sending(Sending {
+                        framed,
+                        message: Some(response),
+                    });
                 }
                 RecvSendState::Sending(mut sending) => match sending.poll(cx)? {
                     Poll::Ready(()) => {
@@ -181,7 +198,8 @@ impl<S, C, Req, Res, E> Stream for RecvSend<S, C, ReturnStream>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
-    E: std::error::Error + Send + Sync + 'static,
+    E: std::error::Error + Send + Sync + Unpin + 'static,
+    Res: Unpin,
 {
     type Item = Result<Event<Req, Res, S>, io::Error>;
 
@@ -212,14 +230,29 @@ where
                         waker: Some(cx.waker().clone()),
                         ..Shared::default()
                     }));
-                    this.inner = RecvSendState::Sending(Sending {
+                    this.inner = RecvSendState::Waiting(
+                        Waiting {
+                            shared: shared.clone(),
+                        },
                         framed,
-                        shared: shared.clone(),
-                    });
+                    );
 
                     let responder = Responder { shared };
 
                     return Poll::Ready(Some(Ok(Event::NewRequest { request, responder })));
+                }
+                RecvSendState::Waiting(mut waiting, framed) => {
+                    let response = match waiting.poll(cx)? {
+                        Poll::Ready(response) => response,
+                        Poll::Pending => {
+                            this.inner = RecvSendState::Waiting(waiting, framed);
+                            return Poll::Pending;
+                        }
+                    };
+                    this.inner = RecvSendState::Sending(Sending {
+                        framed,
+                        message: Some(response),
+                    });
                 }
                 RecvSendState::Sending(mut sending) => match sending.poll(cx)? {
                     Poll::Ready(()) => {
@@ -330,41 +363,59 @@ where
     C: Encoder,
 {
     framed: Framed<S, C>,
-    shared: Arc<Mutex<Shared<C::Item>>>,
+    message: Option<C::Item>,
 }
 
 impl<S, C, Req, Res, E> Sending<S, C>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
-    E: std::error::Error + Send + Sync + 'static,
+    E: std::error::Error + Send + Sync + 'static + Unpin,
 {
     fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         futures_util::ready!(self.framed.poll_ready_unpin(cx).map_err(Error::Send))
             .map_err(into_io_error)?;
 
-        let response = {
-            let mut guard = self.shared.lock().unwrap();
-
-            match guard.message.take() {
-                Some(response) => response,
-                None => {
-                    return if guard.waker.replace(cx.waker().clone()).is_none() {
-                        // Responder was dropped before sending any value, nothing else left to do here.
-                        Poll::Ready(Ok(()))
-                    } else {
-                        Poll::Pending
-                    };
-                }
-            }
-        };
-
         self.framed
-            .start_send_unpin(response)
+            .start_send_unpin(
+                self.message
+                    .take()
+                    .expect("to not be polled after completion"),
+            )
             .map_err(Error::Send)
             .map_err(into_io_error)?;
 
         Poll::Ready(Ok(()))
+    }
+}
+
+struct Waiting<C>
+where
+    C: Encoder,
+{
+    shared: Arc<Mutex<Shared<C::Item>>>,
+}
+
+impl<C, Req, Res, E> Waiting<C>
+where
+    C: Encoder<Item = Res, Error = E> + Decoder<Item = Req, Error = E>,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Res, io::Error>> {
+        let mut guard = self.shared.lock().unwrap();
+
+        let response = match guard.message.take() {
+            Some(response) => response,
+            None => {
+                return if guard.waker.replace(cx.waker().clone()).is_none() {
+                    Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
+                } else {
+                    Poll::Pending
+                };
+            }
+        };
+
+        Poll::Ready(Ok(response))
     }
 }
 
