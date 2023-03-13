@@ -367,6 +367,7 @@ impl<Response> Responder<Response> {
     }
 }
 
+#[derive(Debug)]
 struct Shared<M> {
     message: Option<M>,
     waker: Option<Waker>,
