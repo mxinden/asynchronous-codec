@@ -121,7 +121,7 @@ where
         // If we ran out before parsing, return none and try again later
         let res = match res {
             Ok(v) => Ok(Some(v)),
-            Err(e) if e.is_eof() => Ok(None),
+            Err(e) if e.is_eof() => return Ok(None),
             Err(e) => Err(e.into()),
         };
 
