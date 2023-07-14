@@ -217,4 +217,50 @@ mod test {
 
         assert_eq!(buff.len(), 0);
     }
+
+    #[test]
+    fn cbor_codec_eof_reached() {
+        let mut codec = CborCodec::<TestStruct, TestStruct>::new();
+        let mut buff = BytesMut::new();
+
+        let item1 = TestStruct {
+            name: "Test name".to_owned(),
+            data: 34,
+        };
+        codec.encode(item1.clone(), &mut buff).unwrap();
+
+        // Split the buffer into two.
+        let mut buff_start = buff.clone().split_to(4);
+        let buff_end = buff.clone().split_off(4);
+
+        // Attempt to decode the first half of the buffer. This should return `Ok(None)` and not
+        // advance the buffer.
+        assert_eq!(codec.decode(&mut buff_start).unwrap(), None);
+        assert_eq!(buff_start.len(), 4);
+
+        // Combine the buffer back together.
+        buff_start.extend(buff_end.iter());
+
+        // It should now decode successfully.
+        let item2 = codec.decode(&mut buff).unwrap().unwrap();
+        assert_eq!(item1, item2);
+    }
+
+    #[test]
+    fn cbor_codec_decode_error() {
+        let mut codec = CborCodec::<TestStruct, TestStruct>::new();
+        let mut buff = BytesMut::new();
+
+        let item1 = TestStruct {
+            name: "Test name".to_owned(),
+            data: 34,
+        };
+        codec.encode(item1.clone(), &mut buff).unwrap();
+
+        // Split the end off the buffer.
+        let mut buff_end = buff.clone().split_off(4);
+
+        // Attempting to decode should return an error.
+        assert!(codec.decode(&mut buff_end).is_err());
+    }
 }
