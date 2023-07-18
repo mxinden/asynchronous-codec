@@ -119,10 +119,10 @@ where
         let res: Result<Dec, _> = serde::de::Deserialize::deserialize(&mut de);
 
         // If we ran out before parsing, return none and try again later
-        let res = match res {
-            Ok(v) => Ok(Some(v)),
+        let item = match res {
+            Ok(item) => item,
             Err(e) if e.is_eof() => return Ok(None),
-            Err(e) => Err(e.into()),
+            Err(e) => return Err(e.into()),
         };
 
         // Update offset from iterator
@@ -131,7 +131,7 @@ where
         // Advance buffer
         buf.advance(offset);
 
-        res
+        Ok(Some(item))
     }
 }
 
@@ -259,8 +259,10 @@ mod test {
 
         // Split the end off the buffer.
         let mut buff_end = buff.clone().split_off(4);
+        let buff_end_length = buff_end.len();
 
         // Attempting to decode should return an error.
         assert!(codec.decode(&mut buff_end).is_err());
+        assert_eq!(buff_end.len(), buff_end_length);
     }
 }
