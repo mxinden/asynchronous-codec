@@ -10,7 +10,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Error handling in `CborCodec` `decode` [#7](https://github.com/mxinden/asynchronous-codec/pull/7)
+- Error handling in `CborCodec` and `JsonCodec` `decode` [#7](https://github.com/mxinden/asynchronous-codec/pull/7)
 
 ## [0.6.1] - 2022-11-08
 
