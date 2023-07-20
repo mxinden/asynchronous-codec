@@ -215,7 +215,6 @@ mod test {
         assert_eq!(buff.len(), 0);
     }
 
-
     #[test]
     fn json_codec_eof_reached() {
         let mut codec = JsonCodec::<TestStruct, TestStruct>::new();
