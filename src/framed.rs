@@ -1,5 +1,6 @@
-use super::framed_read::{framed_read_2, FramedRead2};
-use super::framed_write::{framed_write_2, FramedWrite2};
+use core::fmt::Debug;
+use super::framed_read::{framed_read_2, FramedRead2, FramedReadError};
+use super::framed_write::{framed_write_2, FramedWrite2, FramedWriteError};
 use super::fuse::Fuse;
 use super::{Decoder, Encoder};
 use bytes::BytesMut;
@@ -151,36 +152,118 @@ where
     }
 }
 
-impl<T, U> Stream for Framed<T, U>
-where
-    T: AsyncRead + Unpin,
-    U: Decoder,
-{
-    type Item = Result<U::Item, U::Error>;
+/// Represents any error that occur during reading or writing.
+#[derive(Debug)]
+pub enum FramedError<U: Decoder + Encoder> {
+    /// Returned when there was an error during a read.
+    ReadError(FramedReadError<U>),
+    /// Returned when there was an error during a write.
+    WriteError(FramedWriteError<U>),
+}
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.try_poll_next_unpin(cx)
+impl<U: Decoder + Encoder> From<FramedReadError<U>> for FramedError<U> {
+    fn from(value: FramedReadError<U>) -> Self {
+        Self::ReadError(value)
     }
 }
 
-impl<T, U> Sink<U::Item> for Framed<T, U>
+impl<U: Decoder + Encoder> From<FramedWriteError<U>> for FramedError<U> {
+    fn from(value: FramedWriteError<U>) -> Self {
+        Self::WriteError(value)
+    }
+}
+
+impl<T, U: Decoder + Encoder> From<FramedWriteError<Fuse<T, U>>> for FramedError<U> {
+    fn from(e: FramedWriteError<Fuse<T, U>>) -> Self {
+        Self::WriteError(match e {
+                FramedWriteError::<Fuse<_, U>>::Io(io) => FramedWriteError::<U>::from(io),
+                FramedWriteError::<Fuse<_, U>>::EncodingError(enc) =>
+                    FramedWriteError::<U>::EncodingError(enc)
+            }
+        )
+    }
+}
+
+
+impl<T, U: Decoder + Encoder> From<FramedReadError<FramedWrite2<Fuse<T, U>>>> for FramedError<U> {
+    fn from(e: FramedReadError<FramedWrite2<Fuse<T, U>>>) -> Self {
+        Self::ReadError(match e {
+            FramedReadError::<FramedWrite2<Fuse<_, U>>>::Io(io) => FramedReadError::<U>::from(io),
+            FramedReadError::<FramedWrite2<Fuse<_, U>>>::DecodingError(dec) => {
+                FramedReadError::<U>::DecodingError(dec)
+            }
+        })
+    }
+}
+
+impl<T, U> Stream for Framed<T, U>
+where
+    T: AsyncRead + Unpin,
+    U: Decoder + Encoder,
+{
+    type Item = Result<<U as Decoder>::Item, FramedError<U>>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        return match self.inner.try_poll_next_unpin(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(Some(result)) => {
+                match result {
+                    Ok(item) => Poll::Ready(Some(Ok(item))),
+                    Err(e) => {
+                        Poll::Ready(Some(Err(FramedError::from(e))))
+                    },
+                }
+            },
+        }
+    }
+}
+
+impl<T, U> Sink<<U as Encoder>::Item> for Framed<T, U>
 where
     T: AsyncWrite + Unpin,
-    U: Encoder,
+    U: Decoder + Encoder,
 {
-    type Error = U::Error;
+    type Error = FramedError<U>;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.project().inner.poll_ready(cx)
+        match self.project().inner.poll_ready(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                match result {
+                    Ok(item) => Poll::Ready(Ok(item)),
+                    Err(e) => Poll::Ready(Err(FramedError::from(e))),
+                }
+            },
+        }
     }
-    fn start_send(self: Pin<&mut Self>, item: U::Item) -> Result<(), Self::Error> {
-        self.project().inner.start_send(item)
+    fn start_send(self: Pin<&mut Self>, item: <U as Encoder>::Item) -> Result<(), Self::Error> {
+        match self.project().inner.start_send(item) {
+            Ok(item) => Ok(item),
+            Err(e) => Err(FramedError::from(e)),
+        }
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.project().inner.poll_flush(cx)
+        match self.project().inner.poll_flush(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                match result {
+                    Ok(item) => Poll::Ready(Ok(item)),
+                    Err(e) => Poll::Ready(Err(FramedError::from(e))),
+                }
+            },
+        }
     }
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.project().inner.poll_close(cx)
+        match self.project().inner.poll_close(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                match result {
+                    Ok(item) => Poll::Ready(Ok(item)),
+                    Err(e) => Poll::Ready(Err(FramedError::from(e))),
+                }
+            },
+        }
     }
 }
 

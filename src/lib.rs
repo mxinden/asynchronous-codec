@@ -6,10 +6,10 @@
 //! Framed streams are also known as `transports`.
 //!
 //! ```
-//! # futures::executor::block_on(async move {
+//! futures::executor::block_on(async move {
 //! use futures::TryStreamExt;
 //! use futures::io::Cursor;
-//! use asynchronous_codec::{LinesCodec, Framed};
+//! use asynchronous_codec::{LinesCodec, Framed, FramedError};
 //!
 //! let io = Cursor::new(Vec::new());
 //! let mut framed = Framed::new(io, LinesCodec);
@@ -17,12 +17,22 @@
 //! while let Some(line) = framed.try_next().await? {
 //!     dbg!(line);
 //! }
-//! # Ok::<_, std::io::Error>(())
+//! # Ok::<_, FramedError<LinesCodec>>(())
 //! # }).unwrap();
 //! ```
 
-mod codec;
+#![no_std]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
 pub use bytes::{Bytes, BytesMut};
+
+mod codec;
+
+#[cfg(feature = "std")]
 pub use codec::{BytesCodec, LengthCodec, LinesCodec};
 
 #[cfg(feature = "cbor")]
@@ -36,13 +46,24 @@ pub use decoder::Decoder;
 mod encoder;
 pub use encoder::Encoder;
 
+#[cfg(feature = "std")]
 mod framed;
-pub use framed::{Framed, FramedParts};
 
+#[cfg(feature = "std")]
+pub use framed::{Framed, FramedParts, FramedError};
+
+
+#[cfg(feature = "std")]
 mod framed_read;
-pub use framed_read::{FramedRead, FramedReadParts};
 
+#[cfg(feature = "std")]
+pub use framed_read::{FramedRead, FramedReadParts, FramedReadError};
+
+#[cfg(feature = "std")]
 mod framed_write;
-pub use framed_write::{FramedWrite, FramedWriteParts};
 
+#[cfg(feature = "std")]
+pub use framed_write::{FramedWrite, FramedWriteParts, FramedWriteError};
+
+#[cfg(feature = "std")]
 mod fuse;
