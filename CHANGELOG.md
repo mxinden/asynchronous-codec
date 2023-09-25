@@ -11,7 +11,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Use GATs for `Encoder` trait to allow encoding of borrowed data.
-  See [PR x](https://github.com/mxinden/asynchronous-codec/pull/x).
+  See [PR 9](https://github.com/mxinden/asynchronous-codec/pull/9).
 
 ## [0.6.2]
 
