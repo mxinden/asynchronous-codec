@@ -163,7 +163,7 @@ where
     }
 }
 
-impl<T, U> Sink<U::Item> for Framed<T, U>
+impl<T, U> Sink<U::Item<'_>> for Framed<T, U>
 where
     T: AsyncWrite + Unpin,
     U: Encoder,
@@ -173,7 +173,7 @@ where
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.project().inner.poll_ready(cx)
     }
-    fn start_send(self: Pin<&mut Self>, item: U::Item) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: U::Item<'_>) -> Result<(), Self::Error> {
         self.project().inner.start_send(item)
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
