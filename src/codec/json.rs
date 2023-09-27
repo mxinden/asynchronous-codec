@@ -138,10 +138,10 @@ where
     for<'de> Dec: Deserialize<'de> + 'static,
     for<'de> Enc: Serialize + 'static,
 {
-    type Item = Enc;
+    type Item<'a> = Enc;
     type Error = JsonCodecError;
 
-    fn encode(&mut self, data: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, data: Self::Item<'_>, buf: &mut BytesMut) -> Result<(), Self::Error> {
         // Encode json
         let j = serde_json::to_string(&data)?;
 
