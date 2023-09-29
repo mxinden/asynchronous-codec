@@ -215,4 +215,19 @@ impl<T, U> FramedParts<T, U> {
             _priv: (),
         }
     }
+
+    /// Changes the codec used in this `FramedParts`.
+    pub fn try_map_codec<V, F, E>(self, f: F) -> Result<FramedParts<T, V>, E>
+    where
+        V: Encoder + Decoder,
+        F: FnOnce(U) -> Result<V, E>,
+    {
+        Ok(FramedParts {
+            io: self.io,
+            codec: f(self.codec)?,
+            read_buffer: self.read_buffer,
+            write_buffer: self.write_buffer,
+            _priv: (),
+        })
+    }
 }
