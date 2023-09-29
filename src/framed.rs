@@ -204,7 +204,6 @@ impl<T, U> FramedParts<T, U> {
     /// Changes the codec used in this `FramedParts`.
     pub fn map_codec<V, F>(self, f: F) -> FramedParts<T, V>
     where
-        V: Encoder + Decoder,
         F: FnOnce(U) -> V,
     {
         FramedParts {
