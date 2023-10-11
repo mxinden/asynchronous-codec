@@ -140,7 +140,7 @@ where
     }
 }
 
-impl<T, E> Sink<E::Item> for FramedWrite<T, E>
+impl<T, E> Sink<E::Item<'_>> for FramedWrite<T, E>
 where
     T: AsyncWrite + Unpin,
     E: Encoder,
@@ -150,7 +150,7 @@ where
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.project().inner.poll_ready(cx)
     }
-    fn start_send(self: Pin<&mut Self>, item: E::Item) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: E::Item<'_>) -> Result<(), Self::Error> {
         self.project().inner.start_send(item)
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
@@ -221,7 +221,7 @@ impl<T: AsyncRead + Unpin> AsyncRead for FramedWrite2<T> {
     }
 }
 
-impl<T> Sink<T::Item> for FramedWrite2<T>
+impl<T> Sink<T::Item<'_>> for FramedWrite2<T>
 where
     T: AsyncWrite + Encoder + Unpin,
 {
@@ -241,7 +241,7 @@ where
 
         Poll::Ready(Ok(()))
     }
-    fn start_send(mut self: Pin<&mut Self>, item: T::Item) -> Result<(), Self::Error> {
+    fn start_send(mut self: Pin<&mut Self>, item: T::Item<'_>) -> Result<(), Self::Error> {
         let this = &mut *self;
         this.inner.encode(item, &mut this.buffer)
     }

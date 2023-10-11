@@ -18,10 +18,10 @@ const U64_LENGTH: usize = std::mem::size_of::<u64>();
 /// pub struct MyStringCodec(LengthCodec);
 ///
 /// impl Encoder for MyStringCodec {
-///     type Item = String;
+///     type Item<'a> = String;
 ///     type Error = Error;
 ///
-///     fn encode(&mut self, src: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+///     fn encode(&mut self, src: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
 ///         let bytes = Bytes::from(src);
 ///         self.0.encode(bytes, dst)
 ///     }
@@ -47,10 +47,10 @@ const U64_LENGTH: usize = std::mem::size_of::<u64>();
 pub struct LengthCodec;
 
 impl Encoder for LengthCodec {
-    type Item = Bytes;
+    type Item<'a> = Bytes;
     type Error = Error;
 
-    fn encode(&mut self, src: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, src: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.reserve(U64_LENGTH + src.len());
         dst.put_u64(src.len() as u64);
         dst.extend_from_slice(&src);

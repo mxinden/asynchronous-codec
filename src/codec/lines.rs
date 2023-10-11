@@ -21,10 +21,10 @@ use std::io::{Error, ErrorKind};
 pub struct LinesCodec;
 
 impl Encoder for LinesCodec {
-    type Item = String;
+    type Item<'a> = String;
     type Error = Error;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.reserve(item.len());
         dst.put(item.as_bytes());
         Ok(())

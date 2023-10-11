@@ -141,10 +141,10 @@ where
     for<'de> Dec: Deserialize<'de> + 'static,
     for<'de> Enc: Serialize + 'static,
 {
-    type Item = Enc;
+    type Item<'a> = Enc;
     type Error = CborCodecError;
 
-    fn encode(&mut self, data: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, data: Self::Item<'_>, buf: &mut BytesMut) -> Result<(), Self::Error> {
         // Encode cbor
         let j = serde_cbor::to_vec(&data)?;
 

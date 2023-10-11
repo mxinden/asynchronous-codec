@@ -29,10 +29,10 @@ use std::io::Error;
 pub struct BytesCodec;
 
 impl Encoder for BytesCodec {
-    type Item = Bytes;
+    type Item<'a> = Bytes;
     type Error = Error;
 
-    fn encode(&mut self, src: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, src: Self::Item<'_>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.extend_from_slice(&src);
         Ok(())
     }
